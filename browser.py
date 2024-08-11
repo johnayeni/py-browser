@@ -1,12 +1,16 @@
 import socket
 import ssl
 import sys
+import tkinter
+
+SCROLL_STEP = 100
+HSTEP, VSTEP = 13, 18
 
 class URL:
   def __init__(self, url):
     # Get the url scheme e.g http or https
     self.scheme, url = url.split('://', 1)
-    assert self.scheme in ['http', 'https', 'file', 'view-source:http', 'view-source:https']
+    assert self.scheme in ['http', 'https', 'file', 'view-source:http', 'view-source:https'], "Invalid scheme"
 
     if self.scheme == 'file':
       assert url.endswith('.txt'), "Only .txt files are supported"
@@ -30,7 +34,6 @@ class URL:
         self.port = int(self.port)
 
   def request(self, headers):
-
     if self.scheme == 'file':
       with open(self.path) as f:
         return f.read()
@@ -40,7 +43,6 @@ class URL:
         "User-Agent": "python/{}".format(sys.version_info.major),
         **headers
       }
-
 
       # Create a socket to communicate with the host using the system OS
       s = socket.socket(
@@ -67,10 +69,6 @@ class URL:
       for header in request_headers:
         request += "{}: {}\r\n".format(header, request_headers[header])
       request += "\r\n"
-
-      # print(request)
-      # print("\n")
-
       s.send(request.encode('utf8'))
 
       # Read the incoming responses from the host until a new line is found
@@ -97,47 +95,86 @@ class URL:
 
       return content
 
+class Browser:
+  def __init__(self, width=800, height=600):
+    self.width = width
+    self.height = height
+    self.scroll = 0
+    self.display_list = []
+    self.window = tkinter.Tk()
+    self.canvas = tkinter.Canvas(self.window, width=width, height=height)
+    self.canvas.pack()
+    self.bind_keys()
 
-def show(content):
-  print(content, end="")
+  def scroll_down(self, event):
+    self.scroll += SCROLL_STEP
+    self.draw()
 
-def parse(body):
-  parsed = "";
-  in_tag = False
-  index = 0
-  for i in range(len(body)):
-    if i != index:
-      continue
+  def scroll_up(self, event):
+    self.scroll -= SCROLL_STEP
+    self.draw()
 
-    if body[i:-1].startswith("&lt;"):
-      parsed += "<"
-      index += 4
-      continue
+  def bind_keys(self):
+    self.window.bind("<Down>", self.scroll_down)
+    self.window.bind("<Up>", self.scroll_up)
 
-    if body[i:-1].startswith("&gt;"):
-      parsed += ">"
-      index += 4
-      continue
+  def lex(self, body):
+    text = "";
+    in_tag = False
+    index = 0
+    for i in range(len(body)):
+      if i != index:
+        continue
+
+      if body[i:-1].startswith("&lt;"):
+        text += "<"
+        index += 4
+        continue
+
+      if body[i:-1].startswith("&gt;"):
+        text += ">"
+        index += 4
+        continue
 
 
-    if body[i] == "<":
-      in_tag = True
-    elif body[i] == ">":
-      in_tag = False
-    elif not in_tag:
-      parsed += body[i]
-    index += 1
-  return parsed
+      if body[i] == "<":
+        in_tag = True
+      elif body[i] == ">":
+        in_tag = False
+      elif not in_tag:
+        text += body[i]
+      index += 1
+    return text
 
-def load(url, headers):
-  body = url.request(headers);
 
-  if 'view-source:' in url.scheme:
-    show(body)
-    return
+  def layout(self, text):
+    display_list = []
+    cursor_x, cursor_y = HSTEP, VSTEP
+    for c in text:
+      display_list.append((cursor_x, cursor_y, c))
+      cursor_x += HSTEP
+      if cursor_x > self.width - HSTEP:
+        cursor_x = HSTEP
+        cursor_y += VSTEP
+    return display_list
 
-  parsed = parse(body)
-  show(parsed)
+  def draw(self):
+    self.canvas.delete("all")
+    for x, y, c in self.display_list:
+      if y > self.scroll + self.height: continue
+      if y + VSTEP < self.scroll: continue
+      self.canvas.create_text(x, y - self.scroll, text=c)
+
+  def load(self, url, headers):
+    body = url.request(headers);
+
+    if 'view-source:' in url.scheme:
+      self.render(body)
+      return
+    text = self.lex(body)
+    self.display_list = self.layout(text)
+    self.draw()
+    tkinter.mainloop()
 
 if __name__ == "__main__":
   url = URL(sys.argv[1])
@@ -146,4 +183,4 @@ if __name__ == "__main__":
   for arg in sys.argv[2:]:
     key, value = arg.split('=')
     headers[key] = value
-  load(url, headers)
+  Browser().load(url, headers)
