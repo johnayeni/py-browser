@@ -29,11 +29,13 @@ class URL:
       self.host, url = url.split('/', 1)
       self.path = "/" + url
 
+      #Check if the port is specified in the host
       if ":" in self.host:
         self.host, self.port = self.host.split(":", 1)
         self.port = int(self.port)
 
   def request(self, headers):
+    # If the scheme is file, read the file and return the content
     if self.scheme == 'file':
       with open(self.path) as f:
         return f.read()
@@ -59,8 +61,11 @@ class URL:
         ctx = ssl.create_default_context()
         s = ctx.wrap_socket(s, server_hostname=self.host)
 
+      # Set the default http version to 1.0
       http_version = "1.0"
 
+      # Check if the connection is close and set the http version to 1.1
+      # as close connection is only supported in http 1.1
       if "Connection" in request_headers and request_headers["Connection"] == "close":
         http_version = "1.1"
 
@@ -159,8 +164,10 @@ class Browser:
     return display_list
 
   def draw(self):
+    # clear the canvas before drawing to prevent overlapping previous drawings
     self.canvas.delete("all")
     for x, y, c in self.display_list:
+      # check if the current character is within the scroll range
       if y > self.scroll + self.height: continue
       if y + VSTEP < self.scroll: continue
       self.canvas.create_text(x, y - self.scroll, text=c)
@@ -168,12 +175,15 @@ class Browser:
   def load(self, url, headers):
     body = url.request(headers);
 
+    # For the view-source scheme, the we do not need to parse the document
     if 'view-source:' in url.scheme:
-      self.render(body)
+      self.display_list = self.layout(body)
+      self.draw()
       return
     text = self.lex(body)
     self.display_list = self.layout(text)
     self.draw()
+    # Start the tkinter main loop to keep checking for events
     tkinter.mainloop()
 
 if __name__ == "__main__":
