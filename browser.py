@@ -108,20 +108,43 @@ class Browser:
     self.display_list = []
     self.window = tkinter.Tk()
     self.canvas = tkinter.Canvas(self.window, width=width, height=height)
-    self.canvas.pack()
+    self.canvas.pack(fill=tkinter.BOTH, expand=1)
+
+    # scrollbar = tkinter.Scrollbar(self.window, command=self.canvas.yview)
+    # scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.BOTH)
+    # self.canvas.configure(yscrollcommand=scrollbar.set)
+
     self.bind_keys()
 
   def scroll_down(self, event):
-    self.scroll += SCROLL_STEP
-    self.draw()
+    # TODO: fix the scroll down issue
+    if self.scroll < self.display_list[-1][1] + VSTEP:
+      self.scroll += SCROLL_STEP
+      self.draw()
 
   def scroll_up(self, event):
-    self.scroll -= SCROLL_STEP
+    if self.scroll > 0:
+      self.scroll -= SCROLL_STEP
+      self.draw()
+
+
+  # TODO: fix scrolling function
+  def scroll(self, event):
+    if self.scroll > 0 or self.scroll < self.display_list[-1][1] + VSTEP:
+      self.scroll = int(-1*(event.delta/120))
+      self.draw()
+
+  def resize_window(self, event):
+    self.width = event.width
+    self.height = event.height
+    self.reflow()
     self.draw()
 
   def bind_keys(self):
     self.window.bind("<Down>", self.scroll_down)
     self.window.bind("<Up>", self.scroll_up)
+    self.window.bind("<MouseWheel>", self.scroll)
+    self.window.bind("<Configure>", self.resize_window)
 
   def lex(self, body):
     text = "";
@@ -166,6 +189,20 @@ class Browser:
         cursor_y += VSTEP * 2
     return display_list
 
+  def reflow(self):
+    new_display_list = []
+    cursor_x, cursor_y = HSTEP, VSTEP
+    for item in self.display_list:
+      new_display_list.append((cursor_x, cursor_y, item[2]))
+      cursor_x += HSTEP
+      if cursor_x > self.width - HSTEP:
+        cursor_x = HSTEP
+        cursor_y += VSTEP
+      elif item[2] == "\n":
+        cursor_x = HSTEP
+        cursor_y += VSTEP * 2
+    self.display_list = new_display_list
+
   def draw(self):
     # clear the canvas before drawing to prevent overlapping previous drawings
     self.canvas.delete("all")
@@ -176,6 +213,7 @@ class Browser:
       self.canvas.create_text(x, y - self.scroll, text=c)
 
   def load(self, url, headers):
+    self.window.title(url.scheme + "://" + url.host + url.path)
     body = url.request(headers);
 
     # For the view-source scheme, the we do not need to parse the document
