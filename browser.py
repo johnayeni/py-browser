@@ -161,6 +161,9 @@ class Browser:
       if cursor_x > self.width - HSTEP:
         cursor_x = HSTEP
         cursor_y += VSTEP
+      elif c == "\n":
+        cursor_x = HSTEP
+        cursor_y += VSTEP * 2
     return display_list
 
   def draw(self):
