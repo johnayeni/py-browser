@@ -131,7 +131,7 @@ class Browser:
   # TODO: fix scrolling function
   def scroll(self, event):
     if self.scroll > 0 or self.scroll < self.display_list[-1][1] + VSTEP:
-      self.scroll = int(-1*(event.delta/120))
+      self.scroll = event.delta
       self.draw()
 
   def resize_window(self, event):
@@ -143,7 +143,7 @@ class Browser:
   def bind_keys(self):
     self.window.bind("<Down>", self.scroll_down)
     self.window.bind("<Up>", self.scroll_up)
-    self.window.bind("<MouseWheel>", self.scroll)
+    self.canvas.bind_all("<MouseWheel>", self.scroll)
     self.window.bind("<Configure>", self.resize_window)
 
   def lex(self, body):
